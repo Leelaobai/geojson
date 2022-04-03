@@ -211,6 +211,9 @@ func UnmarshalGeometry(data []byte) (*Geometry, error) {
 // UnmarshalBSON decodes the data into a GeoJSON geometry.
 // This fulfills the bson.Unmarshaler interface.
 func (g *Geometry) UnmarshalBSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
 	var object map[string]interface{}
 	err := bson.Unmarshal(data, &object)
 	if err != nil {
