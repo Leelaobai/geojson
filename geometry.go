@@ -26,7 +26,7 @@ const (
 
 // A Geometry correlates to a GeoJSON geometry object.
 type Geometry struct {
-	Type GeometryType `bson:"type"`
+	Type GeometryType `bson:"type" json:"type"`
 
 	// Point []float64{longitude, latitude}
 	// demo: { type: "Point", coordinates: [ 40, 5 ] }
@@ -145,12 +145,12 @@ func NewGeometryCollection(geometries ...*Geometry) *Geometry {
 
 // defining a struct here lets us define the order of the BSON elements.
 type geometry struct {
-	Type        GeometryType `bson:"type"`
-	Coordinates interface{}  `bson:"coordinates,omitempty"`
-	Geometries  interface{}  `bson:"geometries,omitempty"`
+	Type        GeometryType `bson:"type" json:"type,omitempty"`
+	Coordinates interface{}  `bson:"coordinates,omitempty" json:"coordinates,omitempty"`
+	Geometries  interface{}  `bson:"geometries,omitempty" json:"geometries,omitempty"`
 }
 
-func (g Geometry) ToPureGeometry() *geometry {
+func (g *Geometry) toPureGeometry() *geometry {
 	geo := &geometry{
 		Type: g.Type,
 	}
@@ -176,13 +176,16 @@ func (g Geometry) ToPureGeometry() *geometry {
 
 // MarshalBSON converts the geometry object into the correct BSON.
 // MarshalBSON implements bson.Marshaler
+// nolint: gocritic
 func (g Geometry) MarshalBSON() ([]byte, error) {
-	geo := g.ToPureGeometry()
+	geo := g.toPureGeometry()
 	return bson.Marshal(geo)
 }
 
+// MarshalJSON for testing purpose
+// nolint: gocritic
 func (g Geometry) MarshalJSON() ([]byte, error) {
-	geo := g.ToPureGeometry()
+	geo := g.toPureGeometry()
 	return bson.MarshalExtJSON(geo, false, false)
 }
 
@@ -221,6 +224,17 @@ func (g *Geometry) UnmarshalBSON(data []byte) error {
 	}
 
 	return decodeGeometry(g, object)
+}
+
+// UnmarshalJSON decodes the data into a GeoJSON geometry.
+// This fulfills the json.Unmarshaler interface.
+func (g *Geometry) UnmarshalJSON(data []byte) error {
+	err := bson.UnmarshalExtJSON(data, true, g)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func decodeGeometry(g *Geometry, object map[string]interface{}) error {
@@ -265,15 +279,16 @@ func decodePosition(data interface{}) (Point, error) {
 
 	result := make(Point, 0, len(coords))
 	for _, coord := range coords {
-		if f, ok := coord.(float64); ok {
+		switch f := coord.(type) {
+		case float64:
 			result = append(result, f)
-		} else if f, ok := coord.(int); ok {
+		case int:
 			result = append(result, float64(f))
-		} else if f, ok := coord.(int32); ok {
+		case int32:
 			result = append(result, float64(f))
-		} else if f, ok := coord.(int64); ok {
+		case int64:
 			result = append(result, float64(f))
-		} else {
+		default:
 			return nil, fmt.Errorf("not a valid coordinate, got %v", coord)
 		}
 	}
